@@ -8,8 +8,8 @@ import sympy as sp
 # ==========================================
 st.set_page_config(page_title="Project UAS Matematika Komputasi", layout="centered")
 
-st.title("Project UAS Matematika Komputasi")
-st.header("Metode Bisection, Newton-Raphson & Secant")
+st.title("🖥️ Project UAS Matematika Komputasi")
+st.header("Metode Newton-Raphson & Secant")
 st.write("Aplikasi interaktif mencari akar persamaan nonlinear secara dinamis.")
 st.markdown("---")
 
@@ -25,22 +25,17 @@ fungsi_input = st.text_input(
 )
 st.caption("Gunakan sintaks Python: `**` untuk pangkat dan `*` untuk perkalian (Contoh: `x**3 - 4*x - 9`) ")
 
-# Pilihan Metode (Sekarang memuat 3 pilihan)
-metode = st.radio("Pilih Metode Numerik:", ("Bisection", "Newton-Raphson", "Secant"))
+# Pilihan Metode
+metode = st.radio("Pilih Metode Numerik:", ("Newton-Raphson", "Secant"))
 
 # Input tebakan awal berdasarkan metode yang dipilih
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if metode == "Bisection":
-        x0 = st.number_input("Batas Bawah (a):", value=2.0, step=0.1)
-    else:
-        x0 = st.number_input("Tebakan Awal (x0):", value=2.0, step=0.1)
+    x0 = st.number_input("Tebakan Awal (x0):", value=2.0, step=0.1)
 with col2:
-    # Metode Bisection butuh batas atas (b), Metode Secant butuh tebakan kedua (x1)
-    if metode == "Bisection":
-        x1 = st.number_input("Batas Atas (b):", value=3.0, step=0.1)
-    elif metode == "Secant":
+    # Metode Secant butuh 2 tebakan awal (x0 dan x1)
+    if metode == "Secant":
         x1 = st.number_input("Tebakan Kedua (x1):", value=3.0, step=0.1)
     else:
         st.text_input("Tebakan Kedua (x1):", value="Tidak Dibutuhkan", disabled=True)
@@ -48,7 +43,7 @@ with col3:
     toleransi = st.number_input("Toleransi (Tingkat Ketelitian):", value=0.0001, format="%.4f", step=0.0001)
 
 # ==========================================
-# 3. PROSES SIMBOLIK MATEMATIKA (SYMPY & EVAL)
+# 3. PROSES SIMBOLIK MATEMATIKA (SYMPY)
 # ==========================================
 x_simbol = sp.symbols('x')
 
@@ -58,19 +53,14 @@ try:
     
     if metode == "Newton-Raphson":
         st.info(f"📈 **Turunan pertama f'(x) otomatis:** `{turunan_ekspresi}`")
+    
+    # SOLUSI UTAMA: Mengubah ekspresi menjadi fungsi numerik yang aman dari NameError
+    f_numerik = sp.lambdify(x_simbol, ekspresi, "numpy")
+    df_numerik = sp.lambdify(x_simbol, turunan_ekspresi, "numpy")
 
 except Exception as e:
     st.error(f"Sintaks fungsi tidak valid! Mohon periksa kembali penulisan rumus Anda. Error: {e}")
     ekspresi = None
-
-# Fungsi substitusi dinamis untuk menghitung nilai f(x) riil
-def f(x_val):
-    x = x_val
-    return eval(fungsi_input)
-
-# Fungsi substitusi dinamis untuk menghitung nilai f'(x) riil (Turunan)
-def df(x_val):
-    return eval(str(turunan_ekspresi))
 
 # ==========================================
 # 4. EKSEKUSI METODE NUMERIK
@@ -83,50 +73,20 @@ if ekspresi is not None:
         konvergen = False
         
         # ------------------------------------------
-        # A. LOGIKA METODE BISECTION
+        # A. LOGIKA METODE NEWTON-RAPHSON
         # ------------------------------------------
-        if metode == "Bisection":
-            a = x0
-            b = x1
-            
-            if f(a) * f(b) >= 0:
-                st.error("❌ Error: Nilai f(a) dan f(b) harus berlawanan tanda! Interval tidak mengurung akar.")
-            else:
-                while iterasi < max_iterasi:
-                    iterasi += 1
-                    c = (a + b) / 2
-                    fc = f(c)
-                    lebar_interval = abs(b - a)
-                    
-                    konten_tabel.append({
-                        "Iterasi": iterasi,
-                        "Batas Bawah (a)": round(a, 6),
-                        "Batas Atas (b)": round(b, 6),
-                        "Titik Tengah (c)": round(c, 6),
-                        "f(c)": round(fc, 6),
-                        "Lebar Interval": round(lebar_interval, 6)
-                    })
-                    
-                    if lebar_interval < toleransi or abs(fc) < 1e-15:
-                        konvergen = True
-                        akar_ditemukan = c
-                        break
-                    
-                    if f(a) * fc < 0:
-                        b = c
-                    else:
-                        a = c
-
-        # ------------------------------------------
-        # B. LOGIKA METODE NEWTON-RAPHSON
-        # ------------------------------------------
-        elif metode == "Newton-Raphson":
+        if metode == "Newton-Raphson":
             x_sekarang = x0
             
             while iterasi < max_iterasi:
                 iterasi += 1
-                fx = f(x_sekarang)
-                dfx = df(x_sekarang)
+                try:
+                    # Menggunakan fungsi lambdify yang aman
+                    fx = float(f_numerik(x_sekarang))
+                    dfx = float(df_numerik(x_sekarang))
+                except Exception as eval_err:
+                    st.error(f"Gagal mengevaluasi nilai pada x = {x_sekarang}: {eval_err}")
+                    break
                 
                 if dfx == 0:
                     st.error("❌ Error: Turunan f'(x) bernilai 0! Metode Newton-Raphson gagal menemukan akar.")
@@ -152,7 +112,7 @@ if ekspresi is not None:
                 x_sekarang = x_baru
 
         # ------------------------------------------
-        # C. LOGIKA METODE SECANT
+        # B. LOGIKA METODE SECANT
         # ------------------------------------------
         elif metode == "Secant":
             x_min1 = x0  
@@ -160,8 +120,13 @@ if ekspresi is not None:
             
             while iterasi < max_iterasi:
                 iterasi += 1
-                fx_min1 = f(x_min1)
-                fx_sekarang = f(x_sekarang)
+                try:
+                    # Menggunakan fungsi lambdify yang aman
+                    fx_min1 = float(f_numerik(x_min1))
+                    fx_sekarang = float(f_numerik(x_sekarang))
+                except Exception as eval_err:
+                    st.error(f"Gagal mengevaluasi nilai fungsi: {eval_err}")
+                    break
                 
                 if (fx_sekarang - fx_min1) == 0:
                     st.error("❌ Error: Pembagi bernilai 0! Metode Secant gagal.")
@@ -195,7 +160,7 @@ if ekspresi is not None:
             
             if konvergen:
                 st.success(f"✅ Konvergen! Perhitungan selesai pada iterasi ke-**{iterasi}**.")
-                st.info(f"Akar persamaan yang ditemukan adalah x = **{akar_ditemukan:.6f}** dengan nilai f(x) = **{f(akar_ditemukan):.6f}**")
+                st.info(f"Akar persamaan yang ditemukan adalah x = **{akar_ditemukan:.6f}** dengan nilai f(x) = **{float(f_numerik(akar_ditemukan)):.6f}**")
             else:
                 st.warning("⚠️ Perhitungan mencapai batas maksimum iterasi tanpa mencapai toleransi yang diinginkan.")
             
